@@ -1,10 +1,10 @@
 # 🐙 octomux (`omx`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/)
+[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siam777/octomux)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Cross-Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg?style=flat-square)]()
-[![Vitest](https://img.shields.io/badge/Tests-Vitest%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-Vitest%2018%2F18%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
 
 > **Enterprise-grade, cross-platform GitHub multi-account multiplexer, SSH identity manager, and smart repository clone CLI.**
 
@@ -15,8 +15,10 @@ Seamlessly manage multiple GitHub accounts (Work, Personal, Client, Open Source)
 ## ✨ Features
 
 - 🔑 **Multi-Account & SSH Engine**: Add, edit, list, and switch between unlimited GitHub accounts with automated Ed25519/RSA SSH key generation.
+- 🔍 **Automatic SSH Key Discovery**: Automatically discovers existing keys in `~/.ssh/` and imports them with one click.
 - 🛡️ **Zero-Data-Loss SSH Sync**: Safely syncs `~/.ssh/config` using isolated block delimiters (`# === OCTOMUX MANAGED HOSTS ===`) with automated backups (`.bak`).
 - 🔄 **Local & Global Identity Switcher**: Instantly toggle `user.name`, `user.email`, and `core.sshCommand` globally or per repository.
+- 🔗 **Remote Origin Helper**: `omx remote` or `omx origin` binds existing local repositories to dedicated SSH aliases with automated author and SSH key configuration.
 - 📦 **Smart Clone**: `omx clone owner/repo` automatically clones using the account's dedicated SSH Host alias and binds repository-local Git identities upon completion.
 - 💻 **Cross-Platform Compatibility**: Native support for **Windows** (PowerShell, CMD, Git Bash, OpenSSH), **macOS**, and **Linux** with POSIX path normalization and `chmod 0600` key permission handling.
 - 🎨 **Dual-Mode Experience**: Modern interactive TUI wizard with `@clack/prompts` and non-interactive flags (`--json`, `--yes`, `--global`) for CI/CD scripting.
@@ -27,10 +29,10 @@ Seamlessly manage multiple GitHub accounts (Work, Personal, Client, Open Source)
 
 ```bash
 # Global installation via npm
-npm install -g octomux
+npm install -g @siam777/octomux
 
-# Or run directly via npx
-npx octomux
+# Or run directly via npx without installing
+npx @siam777/octomux
 ```
 
 *Both `octomux` and `omx` binary aliases are available upon installation.*
@@ -52,10 +54,13 @@ omx
 ◇  What would you like to do?
 │  ● 📋 List configured accounts
 │  ○ ➕ Add a new GitHub account
+│  ○ 🔑 Auto-import existing SSH keys
 │  ○ 🔀 Switch Git identity (global / local)
+│  ○ 🔗 Add or set remote origin for this repo
 │  ○ 📦 Smart clone a repository
 │  ○ 🔍 Check active Git & SSH status
 │  ○ ⚡ Test SSH connections
+│  ○ 🗑️  Uninstall & clean up octomux
 │  ○ 🚪 Exit
 ```
 
@@ -254,7 +259,7 @@ omx uninstall --delete-keys --yes
 ### 2. Remove the NPM Binary:
 ```bash
 # If installed globally via npm:
-npm uninstall -g octomux
+npm uninstall -g @siam777/octomux
 
 # If linked locally during development:
 npm unlink -g octomux

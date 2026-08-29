@@ -1,8 +1,11 @@
 {
-  "name": "octomux",
+  "name": "@siam777/octomux",
   "version": "1.0.0",
   "description": "Enterprise-grade cross-platform GitHub multi-account, SSH identity, and smart clone manager",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "octomux": "./dist/bin/octomux.js",
     "omx": "./dist/bin/octomux.js"
@@ -36,7 +39,15 @@
     "ssh-config",
     "git-config"
   ],
-  "author": "",
+  "author": "Siam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Siam777/github-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Siam777/github-manager/issues"
+  },
+  "homepage": "https://github.com/Siam777/github-manager#readme",
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^0.8.2",
