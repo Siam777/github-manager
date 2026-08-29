@@ -1,6 +1,6 @@
 # 🐙 octomux (`omx`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siam777/octomux)
+[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siamriaz/octomux)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Cross-Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg?style=flat-square)]()
@@ -29,10 +29,10 @@ Seamlessly manage multiple GitHub accounts (Work, Personal, Client, Open Source)
 
 ```bash
 # Global installation via npm
-npm install -g @siam777/octomux
+npm install -g @siamriaz/octomux
 
 # Or run directly via npx without installing
-npx @siam777/octomux
+npx @siamriaz/octomux
 ```
 
 *Both `octomux` and `omx` binary aliases are available upon installation.*
@@ -259,7 +259,7 @@ omx uninstall --delete-keys --yes
 ### 2. Remove the NPM Binary:
 ```bash
 # If installed globally via npm:
-npm uninstall -g @siam777/octomux
+npm uninstall -g @siamriaz/octomux
 
 # If linked locally during development:
 npm unlink -g octomux

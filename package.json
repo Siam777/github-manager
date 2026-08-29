@@ -1,5 +1,5 @@
 {
-  "name": "@siam777/octomux",
+  "name": "@siamriaz/octomux",
   "version": "1.0.0",
   "description": "Enterprise-grade cross-platform GitHub multi-account, SSH identity, and smart clone manager",
   "type": "module",
