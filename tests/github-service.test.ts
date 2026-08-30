@@ -159,5 +159,12 @@ describe('GitHubService', () => {
     expect(result.token).toBe('gho_token999');
     expect(result.authenticatedUser).toBe('octocat');
   });
+
+  it('should support openBrowserAssistant to open browser and copy key', async () => {
+    const result = await service.openBrowserAssistant('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...');
+    expect(result.success).toBe(true);
+    expect(result.method).toBe('browser-assisted');
+  });
 });
+
 

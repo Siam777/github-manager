@@ -147,7 +147,6 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   handleCancel(uploadKeyConfirm);
 
   let token: string | undefined;
-  let useOAuth = false;
   let useBrowserAssisted = false;
   let uploadKey = Boolean(uploadKeyConfirm);
 
@@ -155,59 +154,61 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     const ghService = new GitHubService();
     const ghStatus = await ghService.isGhCliAuthenticated(safeString(username));
 
-    const authOptions: Array<{ value: string; label: string }> = [
-      {
-        value: 'browser',
-        label: '🌐 1-Click Browser Assisted (Copies key to clipboard & opens GitHub) [Recommended]',
-      },
-    ];
+    const authOptions: Array<{ value: string; label: string }> = [];
 
     if (ghStatus.available) {
-      authOptions.unshift({
+      authOptions.push({
         value: 'gh',
-        label: `⚡ Use GitHub CLI (gh) (Active: @${ghStatus.authenticatedUser || safeString(username)})`,
+        label: `⚡ Use GitHub CLI (gh) (Active: @${ghStatus.authenticatedUser || safeString(username)}) [Instant & 100% Automated]`,
+      });
+      authOptions.push({
+        value: 'browser',
+        label: '🌐 Browser Assisted (Copies key to clipboard & opens GitHub in browser)',
       });
     } else {
-      authOptions.push({ value: 'gh', label: '⚡ Use GitHub CLI (gh)' });
+      authOptions.push({
+        value: 'browser',
+        label: '🌐 Browser Assisted (Copies key to clipboard & opens GitHub in browser) [Recommended]',
+      });
+      authOptions.push({
+        value: 'gh',
+        label: '⚡ Use GitHub CLI (gh)',
+      });
     }
 
     authOptions.push(
       { value: 'pat', label: '🔑 Enter Personal Access Token (PAT)' },
-      { value: 'oauth', label: '📱 GitHub OAuth Device Flow (One-time code)' },
-      { value: 'skip', label: '📋 Skip upload (Set up manually later)' }
+      { value: 'skip', label: '📋 Skip upload (Configure manually later)' }
     );
 
     const authChoice = await p.select({
-      message: 'Select an authentication method to upload your SSH key:',
+      message: 'Select how you want to upload your SSH key to GitHub:',
       options: authOptions,
     });
     handleCancel(authChoice);
 
-    if (authChoice === 'browser') {
+    if (authChoice === 'gh') {
+      useBrowserAssisted = false;
+      uploadKey = true;
+    } else if (authChoice === 'browser') {
       useBrowserAssisted = true;
-      useOAuth = false;
-      uploadKey = true;
-    } else if (authChoice === 'oauth') {
-      useOAuth = true;
-      useBrowserAssisted = false;
-      uploadKey = true;
-    } else if (authChoice === 'gh') {
-      useOAuth = false;
-      useBrowserAssisted = false;
       uploadKey = true;
     } else if (authChoice === 'pat') {
-      useOAuth = false;
       useBrowserAssisted = false;
+      p.note(
+        'Generate a token with "write:public_key" scope in 1-click:\n👉 https://github.com/settings/tokens/new?scopes=admin:public_key,write:public_key&description=octomux',
+        'Quick Token Generator'
+      );
       const tokenInput = await p.text({
-        message: 'GitHub Personal Access Token (PAT) with "write:public_key" scope (leave empty to skip):',
+        message: 'Enter GitHub Personal Access Token (PAT):',
         placeholder: 'ghp_...',
+        validate: (val) => (!safeString(val) ? 'Token cannot be empty (or select Skip)' : undefined),
       });
       handleCancel(tokenInput);
       token = safeString(tokenInput) || undefined;
       uploadKey = Boolean(token);
     } else {
       uploadKey = false;
-      useOAuth = false;
       useBrowserAssisted = false;
       token = undefined;
     }
@@ -223,13 +224,13 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     keyType,
     sshKeyPath,
     token,
-    useOAuth,
     useBrowserAssisted,
     uploadKey,
     overwriteKey,
     setAsGlobal: Boolean(setAsGlobal),
   };
 }
+
 
 
 

@@ -11,9 +11,8 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
   accountCmd
     .command('upload-key [alias]')
     .aliases(['upload', 'push-key'])
-    .description('Upload an account SSH public key to GitHub via 1-Click Browser, GitHub CLI, or PAT Token')
-    .option('-b, --browser', 'Use 1-click browser helper to open GitHub & copy key')
-    .option('--oauth', 'Use GitHub OAuth Device Flow (one-time code)')
+    .description('Upload an account SSH public key to GitHub via Browser Helper, GitHub CLI, or PAT Token')
+    .option('-b, --browser', 'Use 1-click browser helper to open GitHub & copy key to clipboard')
     .option('-t, --token <token>', 'GitHub Personal Access Token (PAT) with write:public_key scope')
     .option('--title <title>', 'Custom title for the SSH key on GitHub')
     .option('--test', 'Test SSH authentication immediately after upload')
@@ -42,19 +41,10 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
           alias,
           options.token,
           options.title,
-          Boolean(options.oauth),
-          Boolean(options.browser || !options.token && !options.oauth),
-          (userCode, verificationUri) => {
-            spinner.stop();
-            logger.box(
-              `🔑 One-time Code: ${userCode}\n🌐 Verification URL: ${verificationUri}`,
-              'GitHub Browser Authorization',
-              'cyan'
-            );
-            spinner.text = `Opening browser and waiting for approval on GitHub...`;
-            spinner.start();
-          }
+          false,
+          Boolean(options.browser || !options.token)
         );
+
 
         if (result.success) {
           if (result.method === 'browser-assisted') {
