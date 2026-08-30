@@ -15,7 +15,7 @@ export function createProgram(): Command {
   program
     .name('octomux')
     .description('Enterprise-grade cross-platform GitHub multi-account & SSH identity manager')
-    .version('1.1.0', '-v, --version', 'Output the current version of octomux');
+    .version('1.1.1', '-v, --version', 'Output the current version of octomux');
 
   // Register commands
   registerAccountCommands(program);

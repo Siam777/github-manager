@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
+import { ConfigStore } from '../core/config-store.js';
 import { SshService } from '../core/ssh-service.js';
 import { GitHubService } from '../core/github-service.js';
 import { getDefaultKeyPath } from '../platform/paths.js';
@@ -20,6 +21,9 @@ export function handleCancel(value: unknown): void {
 export async function promptAddAccount(): Promise<CreateAccountInput> {
   p.intro(pc.bold(pc.cyan('octomux (omx) — Add New GitHub Account')));
 
+  const configStore = new ConfigStore();
+  const existingAccounts = configStore.getAccounts();
+
   const id = await p.text({
     message: 'Enter an alias ID for this account (e.g. work, personal, opensource):',
     placeholder: 'work',
@@ -27,6 +31,9 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
       const s = safeString(val);
       if (!s) return 'Alias ID is required';
       if (!/^[a-z0-9-_]+$/i.test(s)) return 'Alias must contain only alphanumeric characters, dashes, or underscores';
+      if (existingAccounts[s]) {
+        return `An account with alias '${s}' already exists. Use 'omx edit ${s}' to update it, or choose a different alias.`;
+      }
       return undefined;
     },
   });

@@ -1,10 +1,10 @@
 # 🐙 octomux (`omx`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.1.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siamriaz/octomux)
+[![npm version](https://img.shields.io/badge/npm-v1.1.1-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siamriaz/octomux)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Cross-Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg?style=flat-square)]()
-[![Vitest](https://img.shields.io/badge/Tests-Vitest%2022%2F22%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-Vitest%2031%2F31%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
 
 > **Enterprise-grade, cross-platform GitHub multi-account multiplexer, SSH identity manager, and smart repository clone CLI.**
 
