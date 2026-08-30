@@ -23,6 +23,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
     .option('--upload-key', 'Automatically upload generated or configured SSH key to GitHub')
     .option('-b, --browser', 'Use 1-click browser helper to open GitHub & copy key')
     .option('-t, --token <token>', 'GitHub Personal Access Token with write:public_key scope for key upload')
+    .option('--overwrite-key', 'Overwrite existing SSH key file if found on disk')
     .option('--json', 'Output result in JSON format')
     .action(async (options) => {
       const manager = new AccountManager();
@@ -45,11 +46,13 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           useOAuth: Boolean(options.browser),
           useBrowserAssisted: Boolean(options.browser),
           uploadKey: Boolean(options.uploadKey || options.browser || options.token),
+          overwriteKey: Boolean(options.overwriteKey),
           setAsGlobal: Boolean(options.global),
         };
       } else {
         input = await promptAddAccount();
       }
+
 
       const spinner = ora('Configuring GitHub account & SSH host...').start();
 

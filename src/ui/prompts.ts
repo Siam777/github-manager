@@ -1,7 +1,9 @@
+import fs from 'node:fs';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { SshService } from '../core/ssh-service.js';
 import { GitHubService } from '../core/github-service.js';
+import { getDefaultKeyPath } from '../platform/paths.js';
 import { AccountProfile, CreateAccountInput, SshKeyType, UpdateAccountInput } from '../types/account.js';
 
 export function safeString(val: unknown): string {
@@ -87,6 +89,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   let generateKey = true;
   let keyType: SshKeyType = 'ed25519';
   let sshKeyPath: string | undefined;
+  let overwriteKey = false;
 
   const keyChoiceStr = String(keyChoice);
   if (keyChoiceStr.startsWith('existing:')) {
@@ -110,11 +113,32 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     sshKeyPath = safeString(pathInput);
   }
 
+  if (generateKey) {
+    const defaultPath = getDefaultKeyPath(safeString(id), keyType);
+    if (fs.existsSync(defaultPath)) {
+      const collisionChoice = await p.select({
+        message: `An SSH key file already exists on disk for alias '${safeString(id)}':`,
+        options: [
+          { value: 'reuse', label: `🔑 Reuse existing key file (${defaultPath})` },
+          { value: 'overwrite', label: '♻️ Overwrite and generate a fresh key' },
+        ],
+      });
+      handleCancel(collisionChoice);
+      if (collisionChoice === 'reuse') {
+        generateKey = false;
+        sshKeyPath = defaultPath;
+      } else {
+        overwriteKey = true;
+      }
+    }
+  }
+
   const setAsGlobal = await p.confirm({
     message: 'Set this account as the active global Git identity now?',
     initialValue: false,
   });
   handleCancel(setAsGlobal);
+
 
   const uploadKeyConfirm = await p.confirm({
     message: 'Automatically upload this SSH key to your GitHub account?',
@@ -202,9 +226,11 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     useOAuth,
     useBrowserAssisted,
     uploadKey,
+    overwriteKey,
     setAsGlobal: Boolean(setAsGlobal),
   };
 }
+
 
 
 

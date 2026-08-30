@@ -40,18 +40,27 @@ export function registerAccountRemoveCommand(accountCmd: Command): void {
         }
       }
 
+      let deleteKeys = Boolean(options.deleteKeys);
+      if (!options.yes && options.deleteKeys === undefined) {
+        deleteKeys = await promptConfirm(
+          `Do you also want to delete the SSH key files from disk (${targetAccount.ssh.keyPath})?`,
+          true
+        );
+      }
+
       const spinner = ora(`Removing account '${alias}'...`).start();
 
       try {
-        const removed = manager.removeAccount(alias, Boolean(options.deleteKeys));
+        const removed = manager.removeAccount(alias, deleteKeys);
         if (removed) {
           spinner.succeed(`Account profile '${alias}' removed successfully.`);
-          if (options.deleteKeys) {
+          if (deleteKeys) {
             logger.dim(`SSH keys at ${targetAccount.ssh.keyPath} were deleted.`);
           }
         } else {
           spinner.fail(`Account profile '${alias}' was not found.`);
         }
+
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         spinner.fail(`Failed to remove account: ${errorMsg}`);

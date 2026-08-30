@@ -52,14 +52,34 @@ export class AccountManager {
 
     if (validatedInput.generateKey || !privateKeyPath) {
       const defaultKeyPath = getDefaultKeyPath(validatedInput.id, validatedInput.keyType);
-      const keyGenResult = await this.sshService.generateKeyPair(
-        validatedInput.email,
-        defaultKeyPath,
-        validatedInput.keyType,
-        `octomux-${validatedInput.id}`
-      );
-      privateKeyPath = keyGenResult.privateKeyPath;
-      publicKeyPath = keyGenResult.publicKeyPath;
+
+      if (fs.existsSync(defaultKeyPath)) {
+        if (validatedInput.overwriteKey) {
+          try {
+            fs.unlinkSync(defaultKeyPath);
+            if (fs.existsSync(`${defaultKeyPath}.pub`)) {
+              fs.unlinkSync(`${defaultKeyPath}.pub`);
+            }
+          } catch {
+            // Ignore unlink errors
+          }
+        } else {
+          // Gracefully reuse existing key file if found on disk
+          privateKeyPath = defaultKeyPath;
+          publicKeyPath = fs.existsSync(`${defaultKeyPath}.pub`) ? `${defaultKeyPath}.pub` : defaultKeyPath;
+        }
+      }
+
+      if (!privateKeyPath) {
+        const keyGenResult = await this.sshService.generateKeyPair(
+          validatedInput.email,
+          defaultKeyPath,
+          validatedInput.keyType,
+          `octomux-${validatedInput.id}`
+        );
+        privateKeyPath = keyGenResult.privateKeyPath;
+        publicKeyPath = keyGenResult.publicKeyPath;
+      }
     } else {
       if (!fs.existsSync(privateKeyPath)) {
         throw new Error(`Specified private SSH key does not exist at: ${privateKeyPath}`);
@@ -69,6 +89,7 @@ export class AccountManager {
         publicKeyPath = privateKeyPath;
       }
     }
+
 
     const profile: AccountProfile = AccountProfileSchema.parse({
       id: validatedInput.id,
