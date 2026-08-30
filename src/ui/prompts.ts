@@ -1,6 +1,7 @@
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { SshService } from '../core/ssh-service.js';
+import { GitHubService } from '../core/github-service.js';
 import { AccountProfile, CreateAccountInput, SshKeyType, UpdateAccountInput } from '../types/account.js';
 
 export function handleCancel(value: unknown): void {
@@ -109,6 +110,27 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   });
   handleCancel(setAsGlobal);
 
+  const uploadKey = await p.confirm({
+    message: 'Automatically upload this SSH key to your GitHub account?',
+    initialValue: true,
+  });
+  handleCancel(uploadKey);
+
+  let token: string | undefined;
+  if (uploadKey) {
+    const ghService = new GitHubService();
+    const ghStatus = await ghService.isGhCliAuthenticated((username as string).trim());
+
+    if (!ghStatus.available) {
+      const tokenInput = await p.text({
+        message: 'GitHub Personal Access Token (PAT) with "write:public_key" scope (leave empty to skip):',
+        placeholder: 'ghp_...',
+      });
+      handleCancel(tokenInput);
+      token = (tokenInput as string).trim() || undefined;
+    }
+  }
+
   return {
     id: (id as string).trim(),
     name: (username as string).trim(),
@@ -118,9 +140,12 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     generateKey,
     keyType,
     sshKeyPath,
+    token,
     setAsGlobal: Boolean(setAsGlobal),
   };
 }
+
+
 
 export async function promptSelectAccount(
   accounts: AccountProfile[],

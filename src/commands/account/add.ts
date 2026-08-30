@@ -19,15 +19,18 @@ export function registerAccountAddCommand(accountCmd: Command): void {
     .option('--key-type <type>', 'SSH key type (ed25519 or rsa)', 'ed25519')
     .option('--no-keygen', 'Do not generate a new SSH key')
     .option('--global', 'Set as default global Git identity')
+    .option('--upload-key', 'Automatically upload generated or configured SSH key to GitHub')
+    .option('-t, --token <token>', 'GitHub Personal Access Token with write:public_key scope for key upload')
     .option('--json', 'Output result in JSON format')
     .action(async (options) => {
       const manager = new AccountManager();
       const sshService = new SshService();
 
       let input: CreateAccountInput;
+      const isHeadless = Boolean(options.alias && options.username && options.email);
 
       // If key required flags are provided, run in headless mode; otherwise launch interactive wizard
-      if (options.alias && options.username && options.email) {
+      if (isHeadless) {
         input = {
           id: options.alias,
           username: options.username,
@@ -36,6 +39,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           sshKeyPath: options.keyPath,
           generateKey: options.keygen !== false && !options.keyPath,
           keyType: options.keyType === 'rsa' ? 'rsa' : 'ed25519',
+          token: options.token,
           setAsGlobal: Boolean(options.global),
         };
       } else {
@@ -50,17 +54,52 @@ export function registerAccountAddCommand(accountCmd: Command): void {
 
         const pubKeyContent = sshService.getPublicKey(profile.ssh.keyPath);
 
+        // Attempt automatic upload if requested by flag or token was supplied
+        const shouldAttemptUpload = Boolean(
+          options.uploadKey ||
+          options.token ||
+          input.token ||
+          (!isHeadless && !options.json)
+        );
+
+        let uploadSuccess = false;
+
+        if (shouldAttemptUpload) {
+          const uploadSpinner = ora(`Uploading SSH key for '@${profile.username}' to GitHub...`).start();
+          const uploadResult = await manager.uploadSshKey(profile.id, options.token || input.token);
+
+          if (uploadResult.success) {
+            uploadSuccess = true;
+            if (uploadResult.alreadyExists) {
+              uploadSpinner.info(`SSH key is already registered on @${profile.username}'s GitHub account.`);
+            } else {
+              uploadSpinner.succeed(`Public SSH key automatically added to GitHub (@${profile.username})!`);
+            }
+          } else {
+            uploadSpinner.warn(`Auto-upload skipped: ${uploadResult.error}`);
+          }
+        }
+
         if (options.json) {
           console.log(JSON.stringify({ ...profile, publicKeyContent: pubKeyContent }, null, 2));
           return;
         }
 
-        const guide = formatPublicKeyGuide(profile, pubKeyContent);
-        logger.box(guide, 'GitHub SSH Setup Required', 'green');
+        if (uploadSuccess) {
+          logger.highlight('Account Alias', profile.id);
+          logger.highlight('Username', `@${profile.username}`);
+          logger.highlight('SSH Host', profile.ssh.hostAlias);
+          logger.highlight('SSH Key', profile.ssh.keyPath);
+          logger.success('Your GitHub account is fully authenticated and ready for git operations!');
+        } else {
+          const guide = formatPublicKeyGuide(profile, pubKeyContent);
+          logger.box(guide, 'GitHub SSH Setup Required', 'green');
+        }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         spinner.fail(`Failed to add account: ${errorMsg}`);
         process.exit(1);
       }
     });
+
 }

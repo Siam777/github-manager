@@ -110,3 +110,14 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   const program = createProgram();
   await program.parseAsync(argv);
 }
+
+// Export core domain services and types
+export { AccountManager } from './core/account-manager.js';
+export { SshService } from './core/ssh-service.js';
+export { GitService } from './core/git-service.js';
+export { GitHubService } from './core/github-service.js';
+export { ConfigStore } from './core/config-store.js';
+export * from './types/account.js';
+export * from './types/ssh.js';
+export * from './types/config.js';
+

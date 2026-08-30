@@ -5,6 +5,7 @@ import { registerAccountEditCommand } from './edit.js';
 import { registerAccountRemoveCommand } from './remove.js';
 import { registerAccountTestCommand } from './test.js';
 import { registerAccountImportCommand } from './import.js';
+import { registerAccountUploadKeyCommand } from './upload.js';
 
 export function registerAccountCommands(program: Command): void {
   const accountCmd = program
@@ -18,10 +19,13 @@ export function registerAccountCommands(program: Command): void {
   registerAccountRemoveCommand(accountCmd);
   registerAccountTestCommand(accountCmd);
   registerAccountImportCommand(accountCmd);
+  registerAccountUploadKeyCommand(accountCmd);
 
-  // Also expose `omx ls`, `omx import`, and `omx rm` / `omx delete` directly on the root program
+  // Also expose `omx ls`, `omx import`, `omx upload-key`, and `omx rm` / `omx delete` directly on the root program
   registerAccountListCommand(program);
   registerAccountImportCommand(program);
   registerAccountRemoveCommand(program);
+  registerAccountUploadKeyCommand(program);
 }
+
 
