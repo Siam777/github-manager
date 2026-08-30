@@ -38,6 +38,8 @@ export function createProgram(): Command {
         { value: 'remove', label: '❌ Remove / Delete a GitHub account' },
         { value: 'import', label: '🔑 Auto-import existing SSH keys' },
         { value: 'switch', label: '🔀 Switch Git identity (global / local)' },
+        { value: 'key', label: '🔑 View / copy public SSH key' },
+        { value: 'upload', label: '🚀 Upload SSH key to GitHub (Browser / CLI / PAT)' },
         { value: 'remote', label: '🔗 Add or set remote origin for this repo' },
         { value: 'clone', label: '📦 Smart clone a repository' },
         { value: 'status', label: '🔍 Check active Git & SSH status' },
@@ -72,6 +74,12 @@ export function createProgram(): Command {
       case 'switch':
         await program.parseAsync(['node', 'octomux', 'switch']);
         break;
+      case 'key':
+        await program.parseAsync(['node', 'octomux', 'account', 'key']);
+        break;
+      case 'upload':
+        await program.parseAsync(['node', 'octomux', 'account', 'upload-key']);
+        break;
 
       case 'remote': {
         const repo = await p.text({
@@ -102,6 +110,7 @@ export function createProgram(): Command {
         break;
     }
   });
+
 
   return program;
 }
