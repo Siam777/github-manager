@@ -49,12 +49,23 @@ export type CreateAccountInput = z.input<typeof CreateAccountInputSchema>;
 export type CreateAccountPayload = z.output<typeof CreateAccountInputSchema>;
 
 export const UpdateAccountInputSchema = z.object({
+  renameAlias: z
+    .string()
+    .min(1, 'New alias must not be empty')
+    .regex(/^[a-z0-9-_]+$/i, 'New alias must contain only letters, numbers, dashes, or underscores')
+    .optional(),
   name: z.string().optional(),
-  username: z.string().optional(),
-  email: z.string().email().optional(),
-  gitUserName: z.string().optional(),
+  username: z.string().min(1, 'Username cannot be empty').optional(),
+  email: z.string().email('Invalid email address').optional(),
+  gitUserName: z.string().min(1, 'Git author name cannot be empty').optional(),
   sshKeyPath: z.string().optional(),
+  generateKey: z.boolean().optional(),
+  keyType: SshKeyTypeSchema.optional(),
+  deleteOldKey: z.boolean().optional(),
   hostAlias: z.string().optional(),
+  signingKey: z.string().optional(),
   token: z.string().optional(),
+  setAsGlobal: z.boolean().optional(),
 });
 export type UpdateAccountInput = z.input<typeof UpdateAccountInputSchema>;
+

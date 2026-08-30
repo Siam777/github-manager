@@ -146,31 +146,181 @@ export async function promptSelectAccount(
   return found;
 }
 
-export async function promptEditAccount(existing: AccountProfile): Promise<UpdateAccountInput> {
-  p.intro(pc.bold(pc.cyan(`Edit Account: ${existing.id}`)));
+export interface PromptEditAccountResult {
+  input: UpdateAccountInput;
+  shouldTest?: boolean;
+}
 
-  const username = await p.text({
-    message: 'GitHub username:',
-    initialValue: existing.username,
-  });
-  handleCancel(username);
+export async function promptEditAccount(existing: AccountProfile): Promise<PromptEditAccountResult> {
+  p.intro(pc.bold(pc.cyan(`octomux (omx) — Edit Account: ${existing.id}`)));
 
-  const email = await p.text({
-    message: 'Git commit email:',
-    initialValue: existing.email,
+  const action = await p.select({
+    message: 'Select what you would like to update:',
+    options: [
+      { value: 'profile', label: '👤 Update Profile (Username, Email, Git Author Name, Display Name)' },
+      { value: 'ssh', label: '🔑 Rotate / Change SSH Key (Generate new, Pick detected, Custom path)' },
+      { value: 'rename', label: '🏷️  Rename Account Alias' },
+      { value: 'security', label: '🛡️  Update GitHub Token / GPG Signing Key' },
+      { value: 'global', label: '🌐 Set / Unset as Default Global Git Identity' },
+      { value: 'full', label: '📝 Full Walkthrough (Edit all configuration fields)' },
+    ],
   });
-  handleCancel(email);
+  handleCancel(action);
 
-  const gitUserName = await p.text({
-    message: 'Git author name:',
-    initialValue: existing.gitUserName,
+  const input: UpdateAccountInput = {};
+  let shouldTest = false;
+
+  if (action === 'profile' || action === 'full') {
+    const name = await p.text({
+      message: 'Account display label:',
+      initialValue: existing.name || existing.username,
+    });
+    handleCancel(name);
+    input.name = (name as string).trim();
+
+    const username = await p.text({
+      message: 'GitHub username:',
+      initialValue: existing.username,
+      validate: (val) => (!val || !val.trim() ? 'GitHub username cannot be empty' : undefined),
+    });
+    handleCancel(username);
+    input.username = (username as string).trim();
+
+    const email = await p.text({
+      message: 'Git commit email:',
+      initialValue: existing.email,
+      validate: (val) => {
+        if (!val || !val.trim()) return 'Email cannot be empty';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Invalid email address format';
+        return undefined;
+      },
+    });
+    handleCancel(email);
+    input.email = (email as string).trim();
+
+    const gitUserName = await p.text({
+      message: 'Git author name:',
+      initialValue: existing.gitUserName,
+      validate: (val) => (!val || !val.trim() ? 'Git author name cannot be empty' : undefined),
+    });
+    handleCancel(gitUserName);
+    input.gitUserName = (gitUserName as string).trim();
+  }
+
+  if (action === 'ssh' || action === 'full') {
+    const sshService = new SshService();
+    const existingKeys = sshService.scanExistingSshKeys();
+
+    const keyOptions: Array<{ value: string; label: string }> = [
+      { value: 'keep', label: `🔒 Keep current key (${existing.ssh.keyPath})` },
+      { value: 'generate_ed25519', label: '➕ Generate new Ed25519 key (Recommended)' },
+      { value: 'generate_rsa', label: '➕ Generate new RSA 4096-bit key' },
+    ];
+
+    for (const k of existingKeys) {
+      if (k.privateKeyPath !== existing.ssh.keyPath) {
+        const commentStr = k.comment ? ` (${k.comment})` : '';
+        keyOptions.push({
+          value: `existing:${k.privateKeyPath}`,
+          label: `🔑 Use detected key: ${k.name} [${k.keyType}]${commentStr}`,
+        });
+      }
+    }
+
+    keyOptions.push({ value: 'manual', label: '📁 Specify a custom private key path...' });
+
+    const keyChoice = await p.select({
+      message: 'SSH Key configuration:',
+      options: keyOptions,
+    });
+    handleCancel(keyChoice);
+
+    const keyChoiceStr = keyChoice as string;
+    if (keyChoiceStr === 'generate_ed25519') {
+      input.generateKey = true;
+      input.keyType = 'ed25519';
+      shouldTest = true;
+    } else if (keyChoiceStr === 'generate_rsa') {
+      input.generateKey = true;
+      input.keyType = 'rsa';
+      shouldTest = true;
+    } else if (keyChoiceStr.startsWith('existing:')) {
+      input.sshKeyPath = keyChoiceStr.replace('existing:', '');
+      input.generateKey = false;
+      shouldTest = true;
+    } else if (keyChoiceStr === 'manual') {
+      const customPath = await p.text({
+        message: 'Enter path to existing private SSH key:',
+        placeholder: '~/.ssh/id_ed25519_custom',
+        validate: (val) => (!val || !val.trim() ? 'Private key path is required' : undefined),
+      });
+      handleCancel(customPath);
+      input.sshKeyPath = (customPath as string).trim();
+      input.generateKey = false;
+      shouldTest = true;
+    }
+
+    if (input.generateKey || (input.sshKeyPath && input.sshKeyPath !== existing.ssh.keyPath)) {
+      const deleteOld = await p.confirm({
+        message: `Delete previous SSH key file (${existing.ssh.keyPath}) from disk?`,
+        initialValue: false,
+      });
+      handleCancel(deleteOld);
+      input.deleteOldKey = Boolean(deleteOld);
+    }
+  }
+
+  if (action === 'rename' || action === 'full') {
+    const rename = await p.text({
+      message: 'Account alias ID:',
+      initialValue: existing.id,
+      validate: (val) => {
+        if (!val || !val.trim()) return 'Alias is required';
+        if (!/^[a-z0-9-_]+$/i.test(val)) return 'Alias must contain only letters, numbers, dashes, or underscores';
+        return undefined;
+      },
+    });
+    handleCancel(rename);
+    if ((rename as string).trim() !== existing.id) {
+      input.renameAlias = (rename as string).trim();
+    }
+  }
+
+  if (action === 'security' || action === 'full') {
+    const token = await p.text({
+      message: 'GitHub Personal Access Token (PAT) (leave empty to unset or skip):',
+      initialValue: existing.token || '',
+    });
+    handleCancel(token);
+    input.token = (token as string).trim();
+
+    const signingKey = await p.text({
+      message: 'GPG Signing Key ID (optional, leave empty to unset or skip):',
+      initialValue: existing.signingKey || '',
+    });
+    handleCancel(signingKey);
+    input.signingKey = (signingKey as string).trim();
+  }
+
+  if (action === 'global' || action === 'full') {
+    const setGlobal = await p.confirm({
+      message: 'Set this account as the active global Git identity?',
+      initialValue: existing.isDefaultGlobal,
+    });
+    handleCancel(setGlobal);
+    input.setAsGlobal = Boolean(setGlobal);
+  }
+
+  const testConfirm = await p.confirm({
+    message: 'Test SSH authentication with GitHub after saving?',
+    initialValue: shouldTest,
   });
-  handleCancel(gitUserName);
+  handleCancel(testConfirm);
+  shouldTest = Boolean(testConfirm);
 
   return {
-    username: username as string,
-    email: email as string,
-    gitUserName: gitUserName as string,
+    input,
+    shouldTest,
   };
 }
 
@@ -182,3 +332,4 @@ export async function promptConfirm(message: string, initialValue: boolean = fal
   handleCancel(result);
   return Boolean(result);
 }
+

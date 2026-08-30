@@ -1,10 +1,10 @@
 # 🐙 octomux (`omx`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siamriaz/octomux)
+[![npm version](https://img.shields.io/badge/npm-v1.1.0-cb3837.svg?style=flat-square)](https://www.npmjs.com/package/@siamriaz/octomux)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Cross-Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg?style=flat-square)]()
-[![Vitest](https://img.shields.io/badge/Tests-Vitest%2018%2F18%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-Vitest%2022%2F22%20Passing-729B1B.svg?style=flat-square)](https://vitest.dev/)
 
 > **Enterprise-grade, cross-platform GitHub multi-account multiplexer, SSH identity manager, and smart repository clone CLI.**
 
@@ -15,9 +15,10 @@ Seamlessly manage multiple GitHub accounts (Work, Personal, Client, Open Source)
 ## ✨ Features
 
 - 🔑 **Multi-Account & SSH Engine**: Add, edit, list, and switch between unlimited GitHub accounts with automated Ed25519/RSA SSH key generation.
-- 🔍 **Automatic SSH Key Discovery**: Automatically discovers existing keys in `~/.ssh/` and imports them with one click.
+- 🔄 **SSH Key Rotation & Account Updates**: Rotate keys on the fly, replace with discovered or custom keys, rename account aliases, and update GPG signing keys or Personal Access Tokens (PAT).
+- 🔍 **Automatic SSH Key Discovery**: Automatically scans `~/.ssh/` for existing keys and imports them with one click.
 - 🛡️ **Zero-Data-Loss SSH Sync**: Safely syncs `~/.ssh/config` using isolated block delimiters (`# === OCTOMUX MANAGED HOSTS ===`) with automated backups (`.bak`).
-- 🔄 **Local & Global Identity Switcher**: Instantly toggle `user.name`, `user.email`, and `core.sshCommand` globally or per repository.
+- 🔀 **Local & Global Identity Switcher**: Instantly toggle `user.name`, `user.email`, and `core.sshCommand` globally or per repository.
 - 🔗 **Remote Origin Helper**: `omx remote` or `omx origin` binds existing local repositories to dedicated SSH aliases with automated author and SSH key configuration.
 - 📦 **Smart Clone**: `omx clone owner/repo` automatically clones using the account's dedicated SSH Host alias and binds repository-local Git identities upon completion.
 - 💻 **Cross-Platform Compatibility**: Native support for **Windows** (PowerShell, CMD, Git Bash, OpenSSH), **macOS**, and **Linux** with POSIX path normalization and `chmod 0600` key permission handling.
@@ -41,7 +42,7 @@ npx @siamriaz/octomux
 
 ## ⚡ Quick Start
 
-### 1. Interactive Menu
+### Interactive Command Center
 Simply run `omx` without arguments to open the interactive command center:
 
 ```bash
@@ -54,6 +55,7 @@ omx
 ◇  What would you like to do?
 │  ● 📋 List configured accounts
 │  ○ ➕ Add a new GitHub account
+│  ○ ✏️  Edit an existing account
 │  ○ 🔑 Auto-import existing SSH keys
 │  ○ 🔀 Switch Git identity (global / local)
 │  ○ 🔗 Add or set remote origin for this repo
@@ -70,7 +72,7 @@ omx
 
 ### Account Management (`omx account` / `omx acc`)
 
-#### Add an Account (with Auto-Detected Keys)
+#### 1. Add an Account (with Auto-Detected Keys)
 ```bash
 # Interactive setup wizard (automatically scans ~/.ssh and shows detected keys)
 omx account add
@@ -85,7 +87,52 @@ omx account add \
   --global
 ```
 
-#### Auto-Import Existing SSH Keys
+#### 2. Edit & Rotate Account (`omx account edit`)
+Update any aspect of an existing GitHub account profile:
+
+```bash
+# Interactive modular editor (prompts to choose fields: Profile, SSH Key, Rename, Security, Global)
+omx account edit work
+
+# Update GitHub username and commit email
+omx account edit work -u new-username -e new-email@company.com
+
+# Rotate SSH key: generate a fresh Ed25519 key pair and test connection immediately
+omx account edit work --generate-key --key-type ed25519 --test
+
+# Link an existing private SSH key and delete previous key files from disk
+omx account edit work --key-path ~/.ssh/id_custom_ed25519 --delete-old-key
+
+# Rename an account alias (automatically migrates SSH host configs & global references)
+omx account edit work --rename enterprise
+
+# Update GPG commit signing key ID and GitHub Personal Access Token (PAT)
+omx account edit work --signing-key 3AA5C34371567BD2 --token ghp_yourSecretToken
+
+# Set account as active global Git identity
+omx account edit work --global
+```
+
+##### Supported Edit Flags:
+| Flag | Description |
+| :--- | :--- |
+| `--name <name>` | Update account display label |
+| `-u, --username <username>` | Update GitHub username |
+| `-e, --email <email>` | Update Git commit email |
+| `-g, --git-name <name>` | Update Git author display name |
+| `-k, --key-path <path>` | Path to an existing private SSH key |
+| `--generate-key` | Generate a new SSH key pair |
+| `--key-type <type>` | SSH key type: `ed25519` (default) or `rsa` |
+| `--delete-old-key` | Delete previous SSH key files from disk upon replacement |
+| `--rename <newAlias>` | Rename account alias identifier |
+| `--host-alias <alias>` | Update custom SSH Host alias |
+| `--signing-key <keyId>` | Update GPG commit signing key ID |
+| `--token <token>` | Update GitHub Personal Access Token (PAT) |
+| `--global` | Set this account as the active global Git identity |
+| `--test` | Test SSH authentication with GitHub after updating |
+| `--json` | Output updated profile in JSON format |
+
+#### 3. Auto-Import Existing SSH Keys
 ```bash
 # Interactive key auto-discovery & import wizard:
 omx account import
@@ -96,26 +143,21 @@ omx import
 omx import ~/.ssh/id_rsa_work --alias work --username johndoe --email john@work.com
 ```
 
-#### List Accounts
+#### 4. List Accounts
 ```bash
 omx account list
 # or shorthand:
 omx ls
 ```
 
-#### Edit an Account
-```bash
-omx account edit work --email newemail@company.com
-```
-
-#### Remove an Account
+#### 5. Remove an Account
 ```bash
 omx account remove work
 # Delete associated SSH keys as well:
 omx account remove work --delete-keys --yes
 ```
 
-#### Test SSH Connection
+#### 6. Test SSH Connection
 ```bash
 # Test specific profile
 omx account test work
@@ -123,6 +165,7 @@ omx account test work
 # Test all profiles
 omx account test --all
 ```
+
 
 ---
 

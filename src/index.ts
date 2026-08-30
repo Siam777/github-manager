@@ -15,7 +15,7 @@ export function createProgram(): Command {
   program
     .name('octomux')
     .description('Enterprise-grade cross-platform GitHub multi-account & SSH identity manager')
-    .version('1.0.0', '-v, --version', 'Output the current version of octomux');
+    .version('1.1.0', '-v, --version', 'Output the current version of octomux');
 
   // Register commands
   registerAccountCommands(program);
@@ -34,6 +34,7 @@ export function createProgram(): Command {
       options: [
         { value: 'list', label: '📋 List configured accounts' },
         { value: 'add', label: '➕ Add a new GitHub account' },
+        { value: 'edit', label: '✏️  Edit an existing account' },
         { value: 'import', label: '🔑 Auto-import existing SSH keys' },
         { value: 'switch', label: '🔀 Switch Git identity (global / local)' },
         { value: 'remote', label: '🔗 Add or set remote origin for this repo' },
@@ -58,10 +59,14 @@ export function createProgram(): Command {
       case 'add':
         await program.parseAsync(['node', 'octomux', 'account', 'add']);
         break;
+      case 'edit':
+        await program.parseAsync(['node', 'octomux', 'account', 'edit']);
+        break;
       case 'import':
         await program.parseAsync(['node', 'octomux', 'account', 'import']);
         break;
       case 'switch':
+
         await program.parseAsync(['node', 'octomux', 'switch']);
         break;
       case 'remote': {

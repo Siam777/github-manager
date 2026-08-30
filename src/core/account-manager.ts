@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { ConfigStore } from './config-store.js';
 import { SshService } from './ssh-service.js';
+
 import { GitService } from './git-service.js';
 import { getDefaultKeyPath } from '../platform/paths.js';
 import {
@@ -98,10 +100,41 @@ export class AccountManager {
       throw new Error(`Account profile '${alias}' does not exist.`);
     }
 
+    const targetId = validatedInput.renameAlias && validatedInput.renameAlias !== alias
+      ? validatedInput.renameAlias
+      : alias;
+
+    if (targetId !== alias) {
+      const alreadyTaken = this.configStore.getAccount(targetId);
+      if (alreadyTaken) {
+        throw new Error(`Cannot rename alias to '${targetId}': An account with this alias already exists.`);
+      }
+    }
+
+    const oldPrivateKeyPath = existing.ssh.keyPath;
+    const oldPublicKeyPath = existing.ssh.publicKeyPath;
+    const keyType = validatedInput.keyType ?? existing.ssh.keyType ?? 'ed25519';
+
     let privateKeyPath = existing.ssh.keyPath;
     let publicKeyPath = existing.ssh.publicKeyPath;
+    let newKeyGenerated = false;
 
-    if (validatedInput.sshKeyPath && validatedInput.sshKeyPath !== existing.ssh.keyPath) {
+    if (validatedInput.generateKey) {
+      let targetKeyPath = path.join(this.sshService.getSshDir(), `id_${keyType}_octomux_${targetId}`);
+      if (fs.existsSync(targetKeyPath)) {
+        targetKeyPath = path.join(this.sshService.getSshDir(), `id_${keyType}_octomux_${targetId}_${Date.now()}`);
+      }
+
+      const keyGenResult = await this.sshService.generateKeyPair(
+        validatedInput.email ?? existing.email,
+        targetKeyPath,
+        keyType,
+        `octomux-${targetId}`
+      );
+      privateKeyPath = keyGenResult.privateKeyPath;
+      publicKeyPath = keyGenResult.publicKeyPath;
+      newKeyGenerated = true;
+    } else if (validatedInput.sshKeyPath && validatedInput.sshKeyPath !== existing.ssh.keyPath) {
       if (!fs.existsSync(validatedInput.sshKeyPath)) {
         throw new Error(`Specified SSH key does not exist at: ${validatedInput.sshKeyPath}`);
       }
@@ -109,27 +142,73 @@ export class AccountManager {
       publicKeyPath = fs.existsSync(`${privateKeyPath}.pub`) ? `${privateKeyPath}.pub` : privateKeyPath;
     }
 
+    // Safely cleanup old SSH keys if requested and key has changed
+    if (validatedInput.deleteOldKey && (newKeyGenerated || privateKeyPath !== oldPrivateKeyPath)) {
+      try {
+        if (fs.existsSync(oldPrivateKeyPath) && oldPrivateKeyPath !== privateKeyPath) {
+          fs.unlinkSync(oldPrivateKeyPath);
+        }
+        if (fs.existsSync(oldPublicKeyPath) && oldPublicKeyPath !== publicKeyPath) {
+          fs.unlinkSync(oldPublicKeyPath);
+        }
+      } catch {
+        // Ignore deletion errors
+      }
+    }
+
+    // Determine host alias: if alias renamed and old hostAlias was default github.com-<old>, update to github.com-<new>
+    let hostAlias = validatedInput.hostAlias ?? existing.ssh.hostAlias;
+    if (targetId !== alias && !validatedInput.hostAlias && existing.ssh.hostAlias === `github.com-${alias}`) {
+      hostAlias = `github.com-${targetId}`;
+    }
+
+    const setAsGlobal = validatedInput.setAsGlobal !== undefined
+      ? validatedInput.setAsGlobal
+      : existing.isDefaultGlobal;
+
     const updated: AccountProfile = AccountProfileSchema.parse({
-      ...existing,
-      name: validatedInput.name ?? existing.name,
+      id: targetId,
+      name: validatedInput.name ?? (targetId !== alias && existing.name === alias ? targetId : existing.name),
       username: validatedInput.username ?? existing.username,
       email: validatedInput.email ?? existing.email,
       gitUserName: validatedInput.gitUserName ?? existing.gitUserName,
-      token: validatedInput.token !== undefined ? validatedInput.token : existing.token,
+      signingKey: validatedInput.signingKey !== undefined
+        ? (validatedInput.signingKey.trim() ? validatedInput.signingKey.trim() : undefined)
+        : existing.signingKey,
+      token: validatedInput.token !== undefined
+        ? (validatedInput.token.trim() ? validatedInput.token.trim() : undefined)
+        : existing.token,
       ssh: {
-        ...existing.ssh,
         keyPath: privateKeyPath,
         publicKeyPath,
-        hostAlias: validatedInput.hostAlias ?? existing.ssh.hostAlias,
+        hostAlias,
+        keyType,
       },
+      isDefaultGlobal: setAsGlobal,
+      createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     });
+
+    if (targetId !== alias) {
+      this.configStore.removeAccount(alias);
+    }
 
     this.configStore.setAccount(updated);
     this.syncAllSshHosts();
 
+    const activeGlobal = this.configStore.getActiveGlobal();
+    const isCurrentlyActiveGlobal = activeGlobal?.id === alias || activeGlobal?.id === targetId || setAsGlobal;
+
+    if (isCurrentlyActiveGlobal) {
+      if (setAsGlobal || validatedInput.email || validatedInput.gitUserName) {
+        await this.gitService.setGlobalIdentity(updated.gitUserName, updated.email);
+      }
+      this.configStore.setActiveGlobal(targetId);
+    }
+
     return updated;
   }
+
 
   /**
    * Removes an account profile and optionally deletes its SSH keys.

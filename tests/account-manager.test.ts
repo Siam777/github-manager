@@ -122,4 +122,114 @@ describe('AccountManager', () => {
     expect(removed).toBe(true);
     expect(manager.getAccount('client')).toBeUndefined();
   });
+
+  it('should rename an account alias and update host alias', async () => {
+    const mockKeyPath = path.join(testDir, 'id_ed25519_test');
+    fs.writeFileSync(mockKeyPath, 'KEY');
+
+    await manager.addAccount({
+      id: 'oldalias',
+      username: 'user1',
+      email: 'user1@example.com',
+      sshKeyPath: mockKeyPath,
+      generateKey: false,
+    });
+
+    const updated = await manager.updateAccount('oldalias', {
+      renameAlias: 'newalias',
+      username: 'user1-updated',
+    });
+
+    expect(updated.id).toBe('newalias');
+    expect(updated.username).toBe('user1-updated');
+    expect(updated.ssh.hostAlias).toBe('github.com-newalias');
+
+    expect(manager.getAccount('oldalias')).toBeUndefined();
+    expect(manager.getAccount('newalias')).toBeDefined();
+  });
+
+  it('should reject renaming to an existing account alias', async () => {
+    const mockKeyPath = path.join(testDir, 'id_ed25519_test');
+    fs.writeFileSync(mockKeyPath, 'KEY');
+
+    await manager.addAccount({
+      id: 'acc1',
+      username: 'user1',
+      email: 'user1@example.com',
+      sshKeyPath: mockKeyPath,
+      generateKey: false,
+    });
+
+    await manager.addAccount({
+      id: 'acc2',
+      username: 'user2',
+      email: 'user2@example.com',
+      sshKeyPath: mockKeyPath,
+      generateKey: false,
+    });
+
+    await expect(
+      manager.updateAccount('acc1', {
+        renameAlias: 'acc2',
+      })
+    ).rejects.toThrow(/already exists/i);
+  });
+
+  it('should switch SSH key and delete old key when deleteOldKey is true', async () => {
+    const oldKeyPath = path.join(testDir, 'id_old_key');
+    const oldPubKeyPath = `${oldKeyPath}.pub`;
+    fs.writeFileSync(oldKeyPath, 'OLD PRIVATE KEY');
+    fs.writeFileSync(oldPubKeyPath, 'OLD PUBLIC KEY');
+
+    const newKeyPath = path.join(testDir, 'id_new_key');
+    const newPubKeyPath = `${newKeyPath}.pub`;
+    fs.writeFileSync(newKeyPath, 'NEW PRIVATE KEY');
+    fs.writeFileSync(newPubKeyPath, 'NEW PUBLIC KEY');
+
+    await manager.addAccount({
+      id: 'keytest',
+      username: 'keyuser',
+      email: 'keyuser@example.com',
+      sshKeyPath: oldKeyPath,
+      generateKey: false,
+    });
+
+    expect(fs.existsSync(oldKeyPath)).toBe(true);
+
+    const updated = await manager.updateAccount('keytest', {
+      sshKeyPath: newKeyPath,
+      deleteOldKey: true,
+    });
+
+    expect(updated.ssh.keyPath).toBe(newKeyPath);
+    expect(fs.existsSync(oldKeyPath)).toBe(false);
+    expect(fs.existsSync(oldPubKeyPath)).toBe(false);
+    expect(fs.existsSync(newKeyPath)).toBe(true);
+  });
+
+  it('should update signing key, token, and global default status', async () => {
+    const mockKeyPath = path.join(testDir, 'id_ed25519_test');
+    fs.writeFileSync(mockKeyPath, 'KEY');
+
+    await manager.addAccount({
+      id: 'secaccount',
+      username: 'secuser',
+      email: 'secuser@example.com',
+      sshKeyPath: mockKeyPath,
+      generateKey: false,
+      setAsGlobal: false,
+    });
+
+    const updated = await manager.updateAccount('secaccount', {
+      signingKey: 'GPGKEY12345',
+      token: 'ghp_secrettoken123',
+      setAsGlobal: true,
+    });
+
+    expect(updated.signingKey).toBe('GPGKEY12345');
+    expect(updated.token).toBe('ghp_secrettoken123');
+    expect(updated.isDefaultGlobal).toBe(true);
+    expect(configStore.getActiveGlobal()?.id).toBe('secaccount');
+  });
 });
+
