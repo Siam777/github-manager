@@ -7,8 +7,9 @@ import { logger } from '../../ui/logger.js';
 export function registerAccountRemoveCommand(accountCmd: Command): void {
   accountCmd
     .command('remove [alias]')
-    .alias('rm')
+    .aliases(['rm', 'delete', 'del'])
     .description('Remove a GitHub account profile')
+
     .option('-d, --delete-keys', 'Also delete the associated SSH private and public key files')
     .option('-y, --yes', 'Skip confirmation prompt')
     .action(async (aliasArg, options) => {

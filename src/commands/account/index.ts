@@ -19,7 +19,9 @@ export function registerAccountCommands(program: Command): void {
   registerAccountTestCommand(accountCmd);
   registerAccountImportCommand(accountCmd);
 
-  // Also expose `omx ls` and `omx import` directly on the root program
+  // Also expose `omx ls`, `omx import`, and `omx rm` / `omx delete` directly on the root program
   registerAccountListCommand(program);
   registerAccountImportCommand(program);
+  registerAccountRemoveCommand(program);
 }
+

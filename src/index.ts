@@ -35,6 +35,7 @@ export function createProgram(): Command {
         { value: 'list', label: '📋 List configured accounts' },
         { value: 'add', label: '➕ Add a new GitHub account' },
         { value: 'edit', label: '✏️  Edit an existing account' },
+        { value: 'remove', label: '❌ Remove / Delete a GitHub account' },
         { value: 'import', label: '🔑 Auto-import existing SSH keys' },
         { value: 'switch', label: '🔀 Switch Git identity (global / local)' },
         { value: 'remote', label: '🔗 Add or set remote origin for this repo' },
@@ -62,13 +63,16 @@ export function createProgram(): Command {
       case 'edit':
         await program.parseAsync(['node', 'octomux', 'account', 'edit']);
         break;
+      case 'remove':
+        await program.parseAsync(['node', 'octomux', 'account', 'remove']);
+        break;
       case 'import':
         await program.parseAsync(['node', 'octomux', 'account', 'import']);
         break;
       case 'switch':
-
         await program.parseAsync(['node', 'octomux', 'switch']);
         break;
+
       case 'remote': {
         const repo = await p.text({
           message: 'Enter GitHub repository (e.g. owner/repo, https://github.com/...):',
