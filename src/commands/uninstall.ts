@@ -47,18 +47,19 @@ export function registerUninstallCommand(program: Command): void {
         sshService.syncSshConfig([]);
         spinner.text = 'Cleaned octomux managed block in ~/.ssh/config...';
 
-        // 2. Optionally delete generated SSH keys
+        // 2. Optionally delete generated SSH keys (ONLY octomux-managed keys)
         if (deleteKeys) {
           const accounts = Object.values(configStore.getAccounts());
           for (const acc of accounts) {
-            if (fs.existsSync(acc.ssh.keyPath)) {
+            // Protect pre-existing/imported user keys: only delete if key is octomux-generated
+            if (acc.ssh.keyPath.includes('_octomux_') && fs.existsSync(acc.ssh.keyPath)) {
               try {
                 fs.unlinkSync(acc.ssh.keyPath);
               } catch {
                 // Ignore file lock errors
               }
             }
-            if (fs.existsSync(acc.ssh.publicKeyPath)) {
+            if (acc.ssh.publicKeyPath.includes('_octomux_') && fs.existsSync(acc.ssh.publicKeyPath)) {
               try {
                 fs.unlinkSync(acc.ssh.publicKeyPath);
               } catch {
@@ -66,6 +67,7 @@ export function registerUninstallCommand(program: Command): void {
               }
             }
           }
+
 
           // Scan ~/.ssh for any orphaned id_*_octomux_* files
           const sshDir = getSshDir();

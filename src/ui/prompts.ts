@@ -4,6 +4,10 @@ import { SshService } from '../core/ssh-service.js';
 import { GitHubService } from '../core/github-service.js';
 import { AccountProfile, CreateAccountInput, SshKeyType, UpdateAccountInput } from '../types/account.js';
 
+export function safeString(val: unknown): string {
+  return typeof val === 'string' ? val.trim() : '';
+}
+
 export function handleCancel(value: unknown): void {
   if (p.isCancel(value)) {
     p.cancel('Operation cancelled.');
@@ -18,8 +22,9 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     message: 'Enter an alias ID for this account (e.g. work, personal, opensource):',
     placeholder: 'work',
     validate: (val) => {
-      if (!val || !val.trim()) return 'Alias ID is required';
-      if (!/^[a-z0-9-_]+$/i.test(val)) return 'Alias must contain only alphanumeric characters, dashes, or underscores';
+      const s = safeString(val);
+      if (!s) return 'Alias ID is required';
+      if (!/^[a-z0-9-_]+$/i.test(s)) return 'Alias must contain only alphanumeric characters, dashes, or underscores';
       return undefined;
     },
   });
@@ -28,7 +33,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   const username = await p.text({
     message: 'Enter GitHub username (e.g. octocat):',
     placeholder: 'octocat',
-    validate: (val) => (!val || !val.trim() ? 'GitHub username is required' : undefined),
+    validate: (val) => (!safeString(val) ? 'GitHub username is required' : undefined),
   });
   handleCancel(username);
 
@@ -36,8 +41,9 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     message: 'Enter Git commit email (e.g. user@example.com):',
     placeholder: 'user@example.com',
     validate: (val) => {
-      if (!val || !val.trim()) return 'Email is required';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Invalid email address';
+      const s = safeString(val);
+      if (!s) return 'Email is required';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return 'Invalid email address';
       return undefined;
     },
   });
@@ -45,8 +51,8 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
 
   const gitUserName = await p.text({
     message: 'Enter Git author name (used in commit history):',
-    placeholder: username as string,
-    initialValue: username as string,
+    placeholder: safeString(username),
+    initialValue: safeString(username),
   });
   handleCancel(gitUserName);
 
@@ -82,7 +88,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   let keyType: SshKeyType = 'ed25519';
   let sshKeyPath: string | undefined;
 
-  const keyChoiceStr = keyChoice as string;
+  const keyChoiceStr = String(keyChoice);
   if (keyChoiceStr.startsWith('existing:')) {
     generateKey = false;
     sshKeyPath = keyChoiceStr.replace('existing:', '');
@@ -98,10 +104,10 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     const pathInput = await p.text({
       message: 'Enter path to existing private SSH key:',
       placeholder: '~/.ssh/id_rsa',
-      validate: (val) => (!val || !val.trim() ? 'Private key path is required' : undefined),
+      validate: (val) => (!safeString(val) ? 'Private key path is required' : undefined),
     });
     handleCancel(pathInput);
-    sshKeyPath = pathInput as string;
+    sshKeyPath = safeString(pathInput);
   }
 
   const setAsGlobal = await p.confirm({
@@ -110,40 +116,82 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
   });
   handleCancel(setAsGlobal);
 
-  const uploadKey = await p.confirm({
+  const uploadKeyConfirm = await p.confirm({
     message: 'Automatically upload this SSH key to your GitHub account?',
     initialValue: true,
   });
-  handleCancel(uploadKey);
+  handleCancel(uploadKeyConfirm);
 
   let token: string | undefined;
+  let useOAuth = false;
+  let uploadKey = Boolean(uploadKeyConfirm);
+
   if (uploadKey) {
     const ghService = new GitHubService();
-    const ghStatus = await ghService.isGhCliAuthenticated((username as string).trim());
+    const ghStatus = await ghService.isGhCliAuthenticated(safeString(username));
 
-    if (!ghStatus.available) {
+    const authOptions: Array<{ value: string; label: string }> = [
+      { value: 'oauth', label: '🌐 1-Click Browser Login (OAuth Device Flow) [Recommended]' },
+    ];
+
+    if (ghStatus.available) {
+      authOptions.unshift({
+        value: 'gh',
+        label: `⚡ Use GitHub CLI (gh) (Active: @${ghStatus.authenticatedUser || safeString(username)})`,
+      });
+    } else {
+      authOptions.push({ value: 'gh', label: '⚡ Use GitHub CLI (gh)' });
+    }
+
+    authOptions.push(
+      { value: 'pat', label: '🔑 Enter Personal Access Token (PAT)' },
+      { value: 'skip', label: '📋 Skip upload (Set up manually later)' }
+    );
+
+    const authChoice = await p.select({
+      message: 'Select an authentication method to upload your SSH key:',
+      options: authOptions,
+    });
+    handleCancel(authChoice);
+
+    if (authChoice === 'oauth') {
+      useOAuth = true;
+      uploadKey = true;
+    } else if (authChoice === 'gh') {
+      useOAuth = false;
+      uploadKey = true;
+    } else if (authChoice === 'pat') {
+      useOAuth = false;
       const tokenInput = await p.text({
         message: 'GitHub Personal Access Token (PAT) with "write:public_key" scope (leave empty to skip):',
         placeholder: 'ghp_...',
       });
       handleCancel(tokenInput);
-      token = (tokenInput as string).trim() || undefined;
+      token = safeString(tokenInput) || undefined;
+      uploadKey = Boolean(token);
+    } else {
+      uploadKey = false;
+      useOAuth = false;
+      token = undefined;
     }
   }
 
   return {
-    id: (id as string).trim(),
-    name: (username as string).trim(),
-    username: (username as string).trim(),
-    email: (email as string).trim(),
-    gitUserName: ((gitUserName as string) || (username as string)).trim(),
+    id: safeString(id),
+    name: safeString(username),
+    username: safeString(username),
+    email: safeString(email),
+    gitUserName: safeString(gitUserName) || safeString(username),
     generateKey,
     keyType,
     sshKeyPath,
     token,
+    useOAuth,
+    uploadKey,
     setAsGlobal: Boolean(setAsGlobal),
   };
 }
+
 
 
 
@@ -201,35 +249,36 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
       initialValue: existing.name || existing.username,
     });
     handleCancel(name);
-    input.name = (name as string).trim();
+    input.name = safeString(name);
 
     const username = await p.text({
       message: 'GitHub username:',
       initialValue: existing.username,
-      validate: (val) => (!val || !val.trim() ? 'GitHub username cannot be empty' : undefined),
+      validate: (val) => (!safeString(val) ? 'GitHub username cannot be empty' : undefined),
     });
     handleCancel(username);
-    input.username = (username as string).trim();
+    input.username = safeString(username);
 
     const email = await p.text({
       message: 'Git commit email:',
       initialValue: existing.email,
       validate: (val) => {
-        if (!val || !val.trim()) return 'Email cannot be empty';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Invalid email address format';
+        const s = safeString(val);
+        if (!s) return 'Email cannot be empty';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return 'Invalid email address format';
         return undefined;
       },
     });
     handleCancel(email);
-    input.email = (email as string).trim();
+    input.email = safeString(email);
 
     const gitUserName = await p.text({
       message: 'Git author name:',
       initialValue: existing.gitUserName,
-      validate: (val) => (!val || !val.trim() ? 'Git author name cannot be empty' : undefined),
+      validate: (val) => (!safeString(val) ? 'Git author name cannot be empty' : undefined),
     });
     handleCancel(gitUserName);
-    input.gitUserName = (gitUserName as string).trim();
+    input.gitUserName = safeString(gitUserName);
   }
 
   if (action === 'ssh' || action === 'full') {
@@ -260,7 +309,7 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
     });
     handleCancel(keyChoice);
 
-    const keyChoiceStr = keyChoice as string;
+    const keyChoiceStr = String(keyChoice);
     if (keyChoiceStr === 'generate_ed25519') {
       input.generateKey = true;
       input.keyType = 'ed25519';
@@ -277,10 +326,10 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
       const customPath = await p.text({
         message: 'Enter path to existing private SSH key:',
         placeholder: '~/.ssh/id_ed25519_custom',
-        validate: (val) => (!val || !val.trim() ? 'Private key path is required' : undefined),
+        validate: (val) => (!safeString(val) ? 'Private key path is required' : undefined),
       });
       handleCancel(customPath);
-      input.sshKeyPath = (customPath as string).trim();
+      input.sshKeyPath = safeString(customPath);
       input.generateKey = false;
       shouldTest = true;
     }
@@ -300,14 +349,16 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
       message: 'Account alias ID:',
       initialValue: existing.id,
       validate: (val) => {
-        if (!val || !val.trim()) return 'Alias is required';
-        if (!/^[a-z0-9-_]+$/i.test(val)) return 'Alias must contain only letters, numbers, dashes, or underscores';
+        const s = safeString(val);
+        if (!s) return 'Alias is required';
+        if (!/^[a-z0-9-_]+$/i.test(s)) return 'Alias must contain only letters, numbers, dashes, or underscores';
         return undefined;
       },
     });
     handleCancel(rename);
-    if ((rename as string).trim() !== existing.id) {
-      input.renameAlias = (rename as string).trim();
+    const renameStr = safeString(rename);
+    if (renameStr && renameStr !== existing.id) {
+      input.renameAlias = renameStr;
     }
   }
 
@@ -317,14 +368,14 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
       initialValue: existing.token || '',
     });
     handleCancel(token);
-    input.token = (token as string).trim();
+    input.token = safeString(token);
 
     const signingKey = await p.text({
       message: 'GPG Signing Key ID (optional, leave empty to unset or skip):',
       initialValue: existing.signingKey || '',
     });
     handleCancel(signingKey);
-    input.signingKey = (signingKey as string).trim();
+    input.signingKey = safeString(signingKey);
   }
 
   if (action === 'global' || action === 'full') {
@@ -347,6 +398,7 @@ export async function promptEditAccount(existing: AccountProfile): Promise<Promp
     input,
     shouldTest,
   };
+
 }
 
 export async function promptConfirm(message: string, initialValue: boolean = false): Promise<boolean> {

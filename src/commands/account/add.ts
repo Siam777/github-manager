@@ -20,6 +20,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
     .option('--no-keygen', 'Do not generate a new SSH key')
     .option('--global', 'Set as default global Git identity')
     .option('--upload-key', 'Automatically upload generated or configured SSH key to GitHub')
+    .option('-b, --browser', 'Use 1-click browser OAuth login to authorize and upload')
     .option('-t, --token <token>', 'GitHub Personal Access Token with write:public_key scope for key upload')
     .option('--json', 'Output result in JSON format')
     .action(async (options) => {
@@ -40,6 +41,8 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           generateKey: options.keygen !== false && !options.keyPath,
           keyType: options.keyType === 'rsa' ? 'rsa' : 'ed25519',
           token: options.token,
+          useOAuth: Boolean(options.browser),
+          uploadKey: Boolean(options.uploadKey || options.browser || options.token),
           setAsGlobal: Boolean(options.global),
         };
       } else {
@@ -54,19 +57,37 @@ export function registerAccountAddCommand(accountCmd: Command): void {
 
         const pubKeyContent = sshService.getPublicKey(profile.ssh.keyPath);
 
-        // Attempt automatic upload if requested by flag or token was supplied
+        // Attempt automatic upload if requested
         const shouldAttemptUpload = Boolean(
-          options.uploadKey ||
-          options.token ||
-          input.token ||
-          (!isHeadless && !options.json)
+          input.uploadKey !== false &&
+          (options.uploadKey ||
+           options.browser ||
+           options.token ||
+           input.token ||
+           input.useOAuth ||
+           input.uploadKey)
         );
 
         let uploadSuccess = false;
 
         if (shouldAttemptUpload) {
           const uploadSpinner = ora(`Uploading SSH key for '@${profile.username}' to GitHub...`).start();
-          const uploadResult = await manager.uploadSshKey(profile.id, options.token || input.token);
+          const uploadResult = await manager.uploadSshKey(
+            profile.id,
+            options.token || input.token,
+            undefined,
+            input.useOAuth || Boolean(options.browser),
+            (userCode, verificationUri) => {
+              uploadSpinner.stop();
+              logger.box(
+                `🔑 One-time Code: ${userCode}\n🌐 Verification URL: ${verificationUri}`,
+                'GitHub Browser Authorization',
+                'cyan'
+              );
+              uploadSpinner.text = 'Opening browser and waiting for approval on GitHub...';
+              uploadSpinner.start();
+            }
+          );
 
           if (uploadResult.success) {
             uploadSuccess = true;
@@ -84,6 +105,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           console.log(JSON.stringify({ ...profile, publicKeyContent: pubKeyContent }, null, 2));
           return;
         }
+
 
         if (uploadSuccess) {
           logger.highlight('Account Alias', profile.id);
