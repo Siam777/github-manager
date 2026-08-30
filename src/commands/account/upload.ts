@@ -9,7 +9,8 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
   accountCmd
     .command('upload-key [alias]')
     .aliases(['upload', 'push-key'])
-    .description('Upload an account SSH public key to GitHub via GitHub CLI or Personal Access Token')
+    .description('Upload an account SSH public key to GitHub via 1-Click Browser, GitHub CLI, or PAT Token')
+    .option('-b, --browser', 'Use 1-click browser OAuth login to authorize and upload')
     .option('-t, --token <token>', 'GitHub Personal Access Token (PAT) with write:public_key scope')
     .option('--title <title>', 'Custom title for the SSH key on GitHub')
     .option('--test', 'Test SSH authentication immediately after upload')
@@ -31,10 +32,26 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
         alias = targetAccount.id;
       }
 
-      const spinner = ora(`Uploading SSH key for '${alias}' (@${targetAccount.username}) to GitHub...`).start();
+      const spinner = ora(`Preparing SSH key upload for '${alias}' (@${targetAccount.username})...`).start();
 
       try {
-        const result = await manager.uploadSshKey(alias, options.token, options.title);
+        const result = await manager.uploadSshKey(
+          alias,
+          options.token,
+          options.title,
+          Boolean(options.browser),
+          (userCode, verificationUri) => {
+            spinner.stop();
+            logger.box(
+              `🔑 One-time Code: ${userCode}\n🌐 Verification URL: ${verificationUri}`,
+              'GitHub Browser Authorization',
+              'cyan'
+            );
+
+            spinner.text = `Opening browser and waiting for approval on GitHub...`;
+            spinner.start();
+          }
+        );
 
         if (result.success) {
           if (result.alreadyExists) {
@@ -51,7 +68,13 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
           logger.highlight('Account', alias);
           logger.highlight('GitHub User', `@${targetAccount.username}`);
           logger.highlight('Public Key', targetAccount.ssh.publicKeyPath);
-          logger.highlight('Method', result.method === 'gh' ? 'GitHub CLI (gh)' : 'GitHub REST API');
+          const methodLabel =
+            result.method === 'gh'
+              ? 'GitHub CLI (gh)'
+              : result.method === 'oauth'
+              ? 'OAuth Browser Authorization'
+              : 'GitHub REST API';
+          logger.highlight('Method', methodLabel);
 
           if (options.test) {
             const testSpinner = ora(`Testing SSH authentication for '${alias}'...`).start();
@@ -65,8 +88,8 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
           }
         } else {
           spinner.fail(`Failed to upload SSH key: ${result.error}`);
-          logger.dim('\nTip: You can pass a token with "omx account upload-key [alias] --token <token>"');
-          logger.dim('or install & log into GitHub CLI with "gh auth login".');
+          logger.dim('\nTip: You can authenticate via 1-click browser login with "--browser"');
+          logger.dim('or pass a token with "--token <token>".');
           process.exit(1);
         }
       } catch (err: unknown) {
@@ -76,3 +99,4 @@ export function registerAccountUploadKeyCommand(accountCmd: Command): void {
       }
     });
 }
+

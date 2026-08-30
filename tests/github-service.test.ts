@@ -87,4 +87,77 @@ describe('GitHubService', () => {
     expect(result.success).toBe(true);
     expect(apiSpy).toHaveBeenCalled();
   });
+
+  it('should start device flow and return device code details', async () => {
+    const mockDeviceAuth = {
+      device_code: 'mock-device-code',
+      user_code: 'ABCD-1234',
+      verification_uri: 'https://github.com/login/device',
+      expires_in: 900,
+      interval: 5,
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockDeviceAuth,
+    } as unknown as Response);
+
+    const result = await service.startDeviceFlow();
+    expect(result.device_code).toBe('mock-device-code');
+    expect(result.user_code).toBe('ABCD-1234');
+    expect(result.verification_uri).toBe('https://github.com/login/device');
+  });
+
+  it('should poll and receive OAuth access token', async () => {
+    // 1st call returns authorization_pending, 2nd call returns access_token
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ error: 'authorization_pending' }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'gho_oauthToken123' }),
+      } as unknown as Response);
+
+    const token = await service.pollDeviceToken('mock-device-code', 0, 10);
+    expect(token).toBe('gho_oauthToken123');
+  });
+
+  it('should execute full uploadViaOAuth flow and verify user', async () => {
+    vi.spyOn(service, 'startDeviceFlow').mockResolvedValue({
+      device_code: 'dev-123',
+      user_code: 'USER-CODE',
+      verification_uri: 'https://github.com/login/device',
+      expires_in: 900,
+      interval: 0,
+    });
+
+    vi.spyOn(service, 'pollDeviceToken').mockResolvedValue('gho_token999');
+    vi.spyOn(service, 'fetchAuthenticatedUser').mockResolvedValue({ login: 'octocat' });
+
+    vi.spyOn(service, 'uploadViaApi').mockResolvedValue({
+      success: true,
+      method: 'api',
+      keyId: 7777,
+    });
+
+    let capturedCode = '';
+    const result = await service.uploadViaOAuth(
+      'ssh-ed25519 AAA...',
+      'octomux (work)',
+      'octocat',
+      (code) => {
+        capturedCode = code;
+      }
+    );
+
+    expect(capturedCode).toBe('USER-CODE');
+    expect(result.success).toBe(true);
+    expect(result.method).toBe('oauth');
+    expect(result.token).toBe('gho_token999');
+    expect(result.authenticatedUser).toBe('octocat');
+  });
 });
+

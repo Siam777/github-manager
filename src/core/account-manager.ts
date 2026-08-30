@@ -322,12 +322,14 @@ export class AccountManager {
   }
 
   /**
-   * Automatically uploads an account's public SSH key to GitHub using GitHub CLI or Personal Access Token.
+   * Automatically uploads an account's public SSH key to GitHub using OAuth Browser, GitHub CLI, or Personal Access Token.
    */
   public async uploadSshKey(
     alias: string,
     customToken?: string,
-    customTitle?: string
+    customTitle?: string,
+    useOAuth?: boolean,
+    onDeviceCode?: (userCode: string, verificationUri: string) => void
   ): Promise<UploadKeyResult> {
     const account = this.configStore.getAccount(alias);
     if (!account) {
@@ -339,14 +341,25 @@ export class AccountManager {
       throw new Error(`Public key not found for account '${alias}' at '${account.ssh.publicKeyPath}'.`);
     }
 
-    return this.githubService.autoUploadKey({
+    const result = await this.githubService.autoUploadKey({
       publicKeyPath: account.ssh.publicKeyPath,
       publicKeyContent,
       accountAlias: account.id,
       username: account.username,
       token: customToken || account.token,
       customTitle,
+      useOAuth,
+      onDeviceCode,
     });
+
+    // If OAuth or API returned a token, optionally persist it to the account profile
+    if (result.success && result.token && !account.token) {
+      account.token = result.token;
+      this.configStore.setAccount(account);
+    }
+
+    return result;
   }
 }
+
 
