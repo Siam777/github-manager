@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { execa } from 'execa';
+import { copyToClipboard } from '../platform/clipboard.js';
 
 export const DEFAULT_GITHUB_CLIENT_ID = process.env.OCTOMUX_GITHUB_CLIENT_ID || '178c6fc77800e28f3070';
 
@@ -13,11 +14,12 @@ export interface DeviceCodeResponse {
 
 export interface UploadKeyResult {
   success: boolean;
-  method: 'gh' | 'api' | 'oauth' | 'manual';
+  method: 'gh' | 'api' | 'oauth' | 'browser-assisted' | 'manual';
   alreadyExists?: boolean;
   keyId?: number;
   token?: string;
   authenticatedUser?: string;
+  copiedToClipboard?: boolean;
   message?: string;
   error?: string;
 }
@@ -30,6 +32,7 @@ export interface GitHubUploadOptions {
   token?: string;
   customTitle?: string;
   useOAuth?: boolean;
+  useBrowserAssisted?: boolean;
   onDeviceCode?: (userCode: string, verificationUri: string) => void;
 }
 
@@ -226,6 +229,20 @@ export class GitHubService {
   }
 
   /**
+   * Opens GitHub SSH key settings in the default browser and copies public key to clipboard.
+   */
+  public async openBrowserAssistant(publicKeyContent: string): Promise<UploadKeyResult> {
+    const copied = await copyToClipboard(publicKeyContent.trim());
+    await openBrowser('https://github.com/settings/ssh/new');
+    return {
+      success: true,
+      method: 'browser-assisted',
+      copiedToClipboard: copied,
+      message: 'Opened https://github.com/settings/ssh/new in your browser and copied public key to clipboard.',
+    };
+  }
+
+  /**
    * Initiates GitHub OAuth Device Flow.
    */
   public async startDeviceFlow(
@@ -260,7 +277,6 @@ export class GitHubService {
   ): Promise<string> {
     const deadline = Date.now() + expiresInSeconds * 1000;
     let pollInterval = Math.max(intervalSeconds, 0) * 1000;
-
 
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -318,6 +334,7 @@ export class GitHubService {
 
   /**
    * Complete 1-click OAuth flow: requests code, opens browser, polls, verifies user, and uploads key.
+   * If OAuth device flow is unavailable on GitHub, gracefully falls back to browser assistant.
    */
   public async uploadViaOAuth(
     publicKeyContent: string,
@@ -354,7 +371,6 @@ export class GitHubService {
         // Ignore user fetch errors
       }
 
-
       const uploadResult = await this.uploadViaApi(publicKeyContent, title, token);
 
       return {
@@ -363,13 +379,9 @@ export class GitHubService {
         token,
         authenticatedUser,
       };
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      return {
-        success: false,
-        method: 'oauth',
-        error: errorMsg,
-      };
+    } catch {
+      // If OAuth Device flow fails (e.g. 404), seamlessly fallback to Browser Assistant
+      return this.openBrowserAssistant(publicKeyContent);
     }
   }
 
@@ -384,7 +396,12 @@ export class GitHubService {
       return this.uploadViaApi(options.publicKeyContent, title, options.token);
     }
 
-    // 2. If OAuth requested explicitly or no other method available
+    // 2. If Browser-assisted requested
+    if (options.useBrowserAssisted) {
+      return this.openBrowserAssistant(options.publicKeyContent);
+    }
+
+    // 3. If OAuth requested explicitly
     if (options.useOAuth) {
       return this.uploadViaOAuth(
         options.publicKeyContent,
@@ -394,19 +411,15 @@ export class GitHubService {
       );
     }
 
-    // 3. Check if GitHub CLI is available and authenticated for this username
+    // 4. Check if GitHub CLI is available and authenticated for this username
     const ghStatus = await this.isGhCliAuthenticated(options.username);
     if (ghStatus.available) {
       return this.uploadViaGhCli(options.publicKeyPath, title);
     }
 
-    // 4. Default fallback: run OAuth Device Flow with browser opening
-    return this.uploadViaOAuth(
-      options.publicKeyContent,
-      title,
-      options.username,
-      options.onDeviceCode
-    );
+    // 5. Default fallback: Open browser assistant & copy key
+    return this.openBrowserAssistant(options.publicKeyContent);
   }
 }
+
 

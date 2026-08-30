@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import ora from 'ora';
+import * as p from '@clack/prompts';
 import { AccountManager } from '../../core/account-manager.js';
 import { SshService } from '../../core/ssh-service.js';
 import { promptAddAccount } from '../../ui/prompts.js';
@@ -20,7 +21,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
     .option('--no-keygen', 'Do not generate a new SSH key')
     .option('--global', 'Set as default global Git identity')
     .option('--upload-key', 'Automatically upload generated or configured SSH key to GitHub')
-    .option('-b, --browser', 'Use 1-click browser OAuth login to authorize and upload')
+    .option('-b, --browser', 'Use 1-click browser helper to open GitHub & copy key')
     .option('-t, --token <token>', 'GitHub Personal Access Token with write:public_key scope for key upload')
     .option('--json', 'Output result in JSON format')
     .action(async (options) => {
@@ -42,6 +43,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           keyType: options.keyType === 'rsa' ? 'rsa' : 'ed25519',
           token: options.token,
           useOAuth: Boolean(options.browser),
+          useBrowserAssisted: Boolean(options.browser),
           uploadKey: Boolean(options.uploadKey || options.browser || options.token),
           setAsGlobal: Boolean(options.global),
         };
@@ -65,6 +67,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
            options.token ||
            input.token ||
            input.useOAuth ||
+           input.useBrowserAssisted ||
            input.uploadKey)
         );
 
@@ -76,7 +79,8 @@ export function registerAccountAddCommand(accountCmd: Command): void {
             profile.id,
             options.token || input.token,
             undefined,
-            input.useOAuth || Boolean(options.browser),
+            input.useOAuth,
+            input.useBrowserAssisted || Boolean(options.browser),
             (userCode, verificationUri) => {
               uploadSpinner.stop();
               logger.box(
@@ -90,11 +94,38 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           );
 
           if (uploadResult.success) {
-            uploadSuccess = true;
-            if (uploadResult.alreadyExists) {
-              uploadSpinner.info(`SSH key is already registered on @${profile.username}'s GitHub account.`);
+            if (uploadResult.method === 'browser-assisted') {
+              uploadSpinner.succeed('Browser opened to GitHub SSH Settings!');
+              const lines = [
+                `Account:   ${profile.id} (@${profile.username})`,
+                `Title:     octomux (${profile.id})`,
+                `Key:       ${uploadResult.copiedToClipboard ? '✔ [Copied to clipboard - Press Ctrl+V in browser]' : profile.ssh.publicKeyPath}`,
+                '',
+                '👉 Step 1: In the opened browser window, paste the key into the "Key" field.',
+                '👉 Step 2: Click the green "Add SSH key" button on GitHub.',
+              ];
+              logger.box(lines.join('\n'), '1-Click GitHub SSH Setup', 'cyan');
+
+              if (!isHeadless && !options.json) {
+                await p.text({
+                  message: 'Press Enter once you have clicked "Add SSH key" on GitHub to verify...',
+                });
+                const testSpinner = ora(`Verifying SSH authentication with GitHub...`).start();
+                const testResult = await manager.testAccount(profile.id);
+                if (testResult.authenticated) {
+                  testSpinner.succeed(`Authentication verified! Hi @${profile.username}, you are ready!`);
+                  uploadSuccess = true;
+                } else {
+                  testSpinner.info(`You can verify connection anytime with "omx test ${profile.id}".`);
+                }
+              }
             } else {
-              uploadSpinner.succeed(`Public SSH key automatically added to GitHub (@${profile.username})!`);
+              uploadSuccess = true;
+              if (uploadResult.alreadyExists) {
+                uploadSpinner.info(`SSH key is already registered on @${profile.username}'s GitHub account.`);
+              } else {
+                uploadSpinner.succeed(`Public SSH key automatically added to GitHub (@${profile.username})!`);
+              }
             }
           } else {
             uploadSpinner.warn(`Auto-upload skipped: ${uploadResult.error}`);
@@ -105,6 +136,7 @@ export function registerAccountAddCommand(accountCmd: Command): void {
           console.log(JSON.stringify({ ...profile, publicKeyContent: pubKeyContent }, null, 2));
           return;
         }
+
 
 
         if (uploadSuccess) {

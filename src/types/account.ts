@@ -45,6 +45,7 @@ export const CreateAccountInputSchema = z.object({
   token: z.string().optional(),
   setAsGlobal: z.boolean().default(false),
   useOAuth: z.boolean().optional(),
+  useBrowserAssisted: z.boolean().optional(),
   uploadKey: z.boolean().optional(),
 });
 export type CreateAccountInput = z.input<typeof CreateAccountInputSchema>;
@@ -69,8 +70,10 @@ export const UpdateAccountInputSchema = z.object({
   token: z.string().optional(),
   setAsGlobal: z.boolean().optional(),
   useOAuth: z.boolean().optional(),
+  useBrowserAssisted: z.boolean().optional(),
   uploadKey: z.boolean().optional(),
 });
+
 export type UpdateAccountInput = z.input<typeof UpdateAccountInputSchema>;
 
 

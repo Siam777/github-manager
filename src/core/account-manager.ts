@@ -322,13 +322,14 @@ export class AccountManager {
   }
 
   /**
-   * Automatically uploads an account's public SSH key to GitHub using OAuth Browser, GitHub CLI, or Personal Access Token.
+   * Automatically uploads an account's public SSH key to GitHub using Browser, GitHub CLI, or Personal Access Token.
    */
   public async uploadSshKey(
     alias: string,
     customToken?: string,
     customTitle?: string,
     useOAuth?: boolean,
+    useBrowserAssisted?: boolean,
     onDeviceCode?: (userCode: string, verificationUri: string) => void
   ): Promise<UploadKeyResult> {
     const account = this.configStore.getAccount(alias);
@@ -349,6 +350,7 @@ export class AccountManager {
       token: customToken || account.token,
       customTitle,
       useOAuth,
+      useBrowserAssisted,
       onDeviceCode,
     });
 
@@ -360,6 +362,7 @@ export class AccountManager {
 
     return result;
   }
+
 }
 
 

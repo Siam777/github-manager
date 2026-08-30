@@ -124,6 +124,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
 
   let token: string | undefined;
   let useOAuth = false;
+  let useBrowserAssisted = false;
   let uploadKey = Boolean(uploadKeyConfirm);
 
   if (uploadKey) {
@@ -131,7 +132,10 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     const ghStatus = await ghService.isGhCliAuthenticated(safeString(username));
 
     const authOptions: Array<{ value: string; label: string }> = [
-      { value: 'oauth', label: '🌐 1-Click Browser Login (OAuth Device Flow) [Recommended]' },
+      {
+        value: 'browser',
+        label: '🌐 1-Click Browser Assisted (Copies key to clipboard & opens GitHub) [Recommended]',
+      },
     ];
 
     if (ghStatus.available) {
@@ -145,6 +149,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
 
     authOptions.push(
       { value: 'pat', label: '🔑 Enter Personal Access Token (PAT)' },
+      { value: 'oauth', label: '📱 GitHub OAuth Device Flow (One-time code)' },
       { value: 'skip', label: '📋 Skip upload (Set up manually later)' }
     );
 
@@ -154,14 +159,21 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     });
     handleCancel(authChoice);
 
-    if (authChoice === 'oauth') {
+    if (authChoice === 'browser') {
+      useBrowserAssisted = true;
+      useOAuth = false;
+      uploadKey = true;
+    } else if (authChoice === 'oauth') {
       useOAuth = true;
+      useBrowserAssisted = false;
       uploadKey = true;
     } else if (authChoice === 'gh') {
       useOAuth = false;
+      useBrowserAssisted = false;
       uploadKey = true;
     } else if (authChoice === 'pat') {
       useOAuth = false;
+      useBrowserAssisted = false;
       const tokenInput = await p.text({
         message: 'GitHub Personal Access Token (PAT) with "write:public_key" scope (leave empty to skip):',
         placeholder: 'ghp_...',
@@ -172,6 +184,7 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     } else {
       uploadKey = false;
       useOAuth = false;
+      useBrowserAssisted = false;
       token = undefined;
     }
   }
@@ -187,10 +200,12 @@ export async function promptAddAccount(): Promise<CreateAccountInput> {
     sshKeyPath,
     token,
     useOAuth,
+    useBrowserAssisted,
     uploadKey,
     setAsGlobal: Boolean(setAsGlobal),
   };
 }
+
 
 
 
