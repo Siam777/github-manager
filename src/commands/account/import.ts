@@ -65,7 +65,14 @@ export function registerAccountImportCommand(accountCmd: Command): void {
       const alias = options.alias || (await p.text({
         message: 'Account alias ID (e.g. work, personal):',
         initialValue: defaultAlias,
-        validate: (val) => (!val || !val.trim() ? 'Alias is required' : undefined),
+        validate: (val) => {
+          const s = val ? val.trim() : '';
+          if (!s) return 'Alias is required';
+          if (manager.getAccount(s)) {
+            return `An account with alias '${s}' already exists. Use 'omx edit ${s}' or choose a different alias.`;
+          }
+          return undefined;
+        },
       }));
       handleCancel(alias);
 

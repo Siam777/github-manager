@@ -15,7 +15,7 @@ export function createProgram(): Command {
   program
     .name('octomux')
     .description('Enterprise-grade cross-platform GitHub multi-account & SSH identity manager')
-    .version('1.1.0', '-v, --version', 'Output the current version of octomux');
+    .version('1.1.1', '-v, --version', 'Output the current version of octomux');
 
   // Register commands
   registerAccountCommands(program);
@@ -38,6 +38,8 @@ export function createProgram(): Command {
         { value: 'remove', label: '❌ Remove / Delete a GitHub account' },
         { value: 'import', label: '🔑 Auto-import existing SSH keys' },
         { value: 'switch', label: '🔀 Switch Git identity (global / local)' },
+        { value: 'key', label: '🔑 View / copy public SSH key' },
+        { value: 'upload', label: '🚀 Upload SSH key to GitHub (Browser / CLI / PAT)' },
         { value: 'remote', label: '🔗 Add or set remote origin for this repo' },
         { value: 'clone', label: '📦 Smart clone a repository' },
         { value: 'status', label: '🔍 Check active Git & SSH status' },
@@ -72,6 +74,12 @@ export function createProgram(): Command {
       case 'switch':
         await program.parseAsync(['node', 'octomux', 'switch']);
         break;
+      case 'key':
+        await program.parseAsync(['node', 'octomux', 'account', 'key']);
+        break;
+      case 'upload':
+        await program.parseAsync(['node', 'octomux', 'account', 'upload-key']);
+        break;
 
       case 'remote': {
         const repo = await p.text({
@@ -103,6 +111,7 @@ export function createProgram(): Command {
     }
   });
 
+
   return program;
 }
 
@@ -110,3 +119,14 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   const program = createProgram();
   await program.parseAsync(argv);
 }
+
+// Export core domain services and types
+export { AccountManager } from './core/account-manager.js';
+export { SshService } from './core/ssh-service.js';
+export { GitService } from './core/git-service.js';
+export { GitHubService } from './core/github-service.js';
+export { ConfigStore } from './core/config-store.js';
+export * from './types/account.js';
+export * from './types/ssh.js';
+export * from './types/config.js';
+

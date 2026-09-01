@@ -4,6 +4,7 @@ import { ConfigStore } from './config-store.js';
 import { SshService } from './ssh-service.js';
 
 import { GitService } from './git-service.js';
+import { GitHubService, UploadKeyResult } from './github-service.js';
 import { getDefaultKeyPath } from '../platform/paths.js';
 import {
   AccountProfile,
@@ -19,12 +20,20 @@ export class AccountManager {
   private readonly configStore: ConfigStore;
   private readonly sshService: SshService;
   private readonly gitService: GitService;
+  private readonly githubService: GitHubService;
 
-  constructor(configStore?: ConfigStore, sshService?: SshService, gitService?: GitService) {
+  constructor(
+    configStore?: ConfigStore,
+    sshService?: SshService,
+    gitService?: GitService,
+    githubService?: GitHubService
+  ) {
     this.configStore = configStore ?? new ConfigStore();
     this.sshService = sshService ?? new SshService();
     this.gitService = gitService ?? new GitService();
+    this.githubService = githubService ?? new GitHubService();
   }
+
 
   /**
    * Adds a new GitHub account profile, sets up SSH key and configures SSH hosts.
@@ -43,14 +52,34 @@ export class AccountManager {
 
     if (validatedInput.generateKey || !privateKeyPath) {
       const defaultKeyPath = getDefaultKeyPath(validatedInput.id, validatedInput.keyType);
-      const keyGenResult = await this.sshService.generateKeyPair(
-        validatedInput.email,
-        defaultKeyPath,
-        validatedInput.keyType,
-        `octomux-${validatedInput.id}`
-      );
-      privateKeyPath = keyGenResult.privateKeyPath;
-      publicKeyPath = keyGenResult.publicKeyPath;
+
+      if (fs.existsSync(defaultKeyPath)) {
+        if (validatedInput.overwriteKey) {
+          try {
+            fs.unlinkSync(defaultKeyPath);
+            if (fs.existsSync(`${defaultKeyPath}.pub`)) {
+              fs.unlinkSync(`${defaultKeyPath}.pub`);
+            }
+          } catch {
+            // Ignore unlink errors
+          }
+        } else {
+          // Gracefully reuse existing key file if found on disk
+          privateKeyPath = defaultKeyPath;
+          publicKeyPath = fs.existsSync(`${defaultKeyPath}.pub`) ? `${defaultKeyPath}.pub` : defaultKeyPath;
+        }
+      }
+
+      if (!privateKeyPath) {
+        const keyGenResult = await this.sshService.generateKeyPair(
+          validatedInput.email,
+          defaultKeyPath,
+          validatedInput.keyType,
+          `octomux-${validatedInput.id}`
+        );
+        privateKeyPath = keyGenResult.privateKeyPath;
+        publicKeyPath = keyGenResult.publicKeyPath;
+      }
     } else {
       if (!fs.existsSync(privateKeyPath)) {
         throw new Error(`Specified private SSH key does not exist at: ${privateKeyPath}`);
@@ -60,6 +89,7 @@ export class AccountManager {
         publicKeyPath = privateKeyPath;
       }
     }
+
 
     const profile: AccountProfile = AccountProfileSchema.parse({
       id: validatedInput.id,
@@ -311,4 +341,49 @@ export class AccountManager {
 
     return this.sshService.testConnection(account.ssh.hostAlias, account.username);
   }
+
+  /**
+   * Automatically uploads an account's public SSH key to GitHub using Browser, GitHub CLI, or Personal Access Token.
+   */
+  public async uploadSshKey(
+    alias: string,
+    customToken?: string,
+    customTitle?: string,
+    useOAuth?: boolean,
+    useBrowserAssisted?: boolean,
+    onDeviceCode?: (userCode: string, verificationUri: string) => void
+  ): Promise<UploadKeyResult> {
+    const account = this.configStore.getAccount(alias);
+    if (!account) {
+      throw new Error(`Account profile '${alias}' not found.`);
+    }
+
+    const publicKeyContent = this.sshService.getPublicKey(account.ssh.keyPath);
+    if (!publicKeyContent) {
+      throw new Error(`Public key not found for account '${alias}' at '${account.ssh.publicKeyPath}'.`);
+    }
+
+    const result = await this.githubService.autoUploadKey({
+      publicKeyPath: account.ssh.publicKeyPath,
+      publicKeyContent,
+      accountAlias: account.id,
+      username: account.username,
+      token: customToken || account.token,
+      customTitle,
+      useOAuth,
+      useBrowserAssisted,
+      onDeviceCode,
+    });
+
+    // If OAuth or API returned a token, optionally persist it to the account profile
+    if (result.success && result.token && !account.token) {
+      account.token = result.token;
+      this.configStore.setAccount(account);
+    }
+
+    return result;
+  }
+
 }
+
+
